@@ -1,3 +1,9 @@
+import torch
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+from torchvision.utils import save_image
+
 class PPCA():
 
     def __init__(self, dataset, L):
@@ -22,18 +28,65 @@ class PPCA():
         self.x_mu = self.data.T - self.mu.repeat(self.data.shape[0],1).T
         temp = torch.inverse(M)@self.W.T
         self.z = temp.type(torch.double)@self.x_mu
-    
-    def plot(self, n=0):
+
+    def plot(self):
+        for s in self.compute_pca_loop():
+            
         return
-    
-    
-    def generate_sample(self):
-        prior = torch.distributions.Normal(torch.zeros((self.L, self.L)), 1)
-        z_hat = prior.sample().type(torch.double)
-       
-        posterior = torch.distributions.Normal((self.W.type(torch.double)@z_hat).T + self.mu, self.sigma2.type(torch.double))
-        print(posterior.loc.shape)
         
-        return posterior.sample()
-       
+    def compute_pca_loop(self):
+        samples = []
+        for i in range(9+1):
+            idx = self.dataset.train_labels == i
+            data = self.dataset.train_data[idx]
+            z, W, x_mu, sigma2 = self.compute_pca(data)
+            sample = self.generate_sample(z, W, x_mu, sigma2)
+            samples.append(sample)
+        return samples
+    
+    def compute_pca(self, data):
+        u = data.shape[0]
+        data = data.reshape((u, 28*28))
+        cov = torch.cov(data.T)
+        eigen = torch.linalg.eig(cov)
+        eigenvec = eigen.eigenvectors
+        eigenval = eigen.eigenvalues
       
+        dim = eigenvec.shape[1]
+        sigma2 = 1/(dim-self.L)*torch.sum(eigenval[self.L:])
+        W = self.eigenvec[:,:self.L] @ (torch.diag(eigenval[:self.L])-sigma2*torch.eye(self.L)**0.5) 
+        mu = torch.mean(data.type(torch.double), 0)
+        M = W.T @ W + sigma2 * torch.eye(self.L)
+        x_mu = data.T - mu.repeat(data.shape[0],1).T
+        temp = torch.inverse(M)@W.T
+        z = temp.type(torch.double)@mu
+        return z, W.type(torch.double), mu, sigma2
+
+    def generate_sample(self, z, W, mu, sigma2):
+        prior = torch.distributions.Normal(torch.zeros(W.shape[0]), 1)
+        eps = prior.sample()
+        return W@z + mu + 0*sigma2.type(torch.double)*eps
+       
+
+if __name__=="__main__":
+    cuda = torch.cuda.is_available()
+    batch_size = 128
+    log_interval = 10
+    num_epochs = 10
+
+    torch.manual_seed(1) # args.seed
+
+    device = torch.device("cuda" if cuda else "cpu") # args.cuda
+    kwargs = {'num_workers': 1, 'pin_memory': True} if cuda else {} # args.cuda
+
+    # Get train and test data
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+                    transform=transforms.ToTensor()),
+        batch_size=batch_size, shuffle=True, **kwargs)
+
+    ppca = PPCA(train_loader.dataset, 30)
+    samples = ppca.plot()
+    s = samples[2]
+    plt.imshow(s.reshape((28,28)), cmap='gray')
+    plt.show()
