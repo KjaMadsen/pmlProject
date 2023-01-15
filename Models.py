@@ -165,12 +165,13 @@ class deNoise(nn.Module):
         return x
 
 class BayesianLinear(nn.Module):
+    #inspiration https://github.com/Harry24k/bayesian-neural-network-pytorch
     __constants__ = ['in_features', 'out_features']
     in_features: int
     out_features: int
     weight: torch.Tensor
 
-    def __init__(self, in_features: int, out_features: int, prior, bias: bool = False,
+    def __init__(self, in_features: int, out_features: int, prior, bias: bool = True,
                  device=None, dtype=torch.float32) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(BayesianLinear, self).__init__()
@@ -180,29 +181,31 @@ class BayesianLinear(nn.Module):
         self.prior = prior
         self.weight_mu = nn.Parameter(torch.Tensor(out_features, in_features))
         self.weight_std = nn.Parameter(torch.Tensor(out_features, in_features))
-
-        self.register_parameter('bias', None)
+  
+        self.bias_mu = nn.Parameter(torch.Tensor(out_features))
+        self.bias_std = nn.Parameter(torch.Tensor(out_features))
+  
         self.reset_parameters()
 
     
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         sample = self.weight_mu + torch.exp(self.weight_std) * torch.rand_like(self.weight_std)
-        return F.linear(input, sample, None)
-
-    def extra_repr(self) -> str:
-        return 'in_features={}, out_features={}, bias={}'.format(
-            self.in_features, self.out_features, False
-        )
+        bias_sample = self.bias_mu + torch.exp(self.bias_std) * torch.rand_like(self.bias_std)
+        return F.linear(input, sample, bias_sample)
     
     def KL_loss(self):
         weight_posterior = torch.distributions.Normal(self.weight_mu, self.weight_std)
-        return torch.distributions.kl.kl_divergence(weight_posterior, self.prior)
+        bias_posterior = torch.distributions.Normal(self.bias_mu, self.bias_std)
+        KLD = torch.distributions.kl_divergence(weight_posterior, self.prior)
+        KLD_bias = torch.distributions.kl_divergence(bias_posterior, self.prior)
+        return (KLD.sum()+KLD_bias.sum()) / (torch.numel(KLD)+torch.numel(KLD_bias))
     
     def reset_parameters(self) -> None:
         std = 1. / math.sqrt(self.weight_mu.size(1))
         self.weight_mu.data.uniform_(-std,std)
         self.weight_std.data.fill_(self.prior_log_std)
-        print("")
+        self.bias_mu.data.uniform_(-std, std)
+        self.bias_std.data.fill_(self.prior_log_std)
 
         
 
@@ -236,7 +239,7 @@ class BayesianVAE(nn.Module):
         for m in self.children():
             kl += m.KL_loss().sum()
             n += 1
-        return kl / n
+        return kl
 
     def decode(self, z):
         h3 = F.relu(self.fc3(z))
@@ -246,7 +249,8 @@ class BayesianVAE(nn.Module):
     def forward(self, x):
         mu, logvar = self.encode(x.view(-1, 784))
         z = self.reparameterize(mu, logvar)
-        return self.decode(z), mu, logvar
+        rec = self.decode(z)
+        return rec, mu, logvar
 
 
 

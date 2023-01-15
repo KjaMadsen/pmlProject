@@ -39,11 +39,12 @@ def KL_loss(p, q):
 def train(epoch, model, optimizer, loss_function):
     model.train() # so that everything has gradients and we can do backprop and so on...
     train_loss = 0
+    
     for batch_idx, (data, _) in enumerate(train_loader):
         data = data.to(device)
         optimizer.zero_grad() # "reset" gradients to 0 for text iteration
         recon_batch, mu, logvar = model(data)
-        loss = model.KL_loss()
+        loss = 0.1*model.KL_loss() #+recon_error
         loss.backward() # calc gradients
         train_loss += loss.item()
         optimizer.step() # backpropagation
@@ -66,18 +67,18 @@ def test(epoch, model, loss_function):
 
 
 if __name__=="__main__":
-    prior = torch.distributions.Normal(torch.tensor([0]), torch.tensor([.1]))
+    prior = torch.distributions.Normal(torch.tensor([0]), torch.tensor([1]))
     model = BayesianVAE(prior).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f"trainable parameters: {params:,}")
-
+    
     for epoch in range(1, num_epochs + 1):
-        train(epoch, model, optimizer, KL_loss)
+        train(epoch, model, optimizer, loss_function)
         #torch.save(model.state_dict(), "weights/VAE.pth")
-        test(epoch, model, KL_loss)
+        test(epoch, model, loss_function)
         with torch.no_grad():
             sample = torch.randn(64, 2).to(device) # 20 -> 2
             sample = model.decode(sample).cpu()
