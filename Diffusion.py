@@ -4,8 +4,9 @@
 # https://www.youtube.com/watch?v=a4Yfz2FxXiY&t=3s 
 import torch
 import torch.nn as nn
-import torch.functional as F
-
+import torch.nn.functional as F
+from torchvision import datasets, transforms
+from torchvision.utils import save_image
 
 class denoisingDiffusion:
     def __init__(self, model : nn.Module, T=1000, device='cpu'):
@@ -37,13 +38,9 @@ class denoisingDiffusion:
         alpha = self.extract(self.alphas, t, x_t)
         alpha_bar = self.extract(self.alphas_bar, t, x_t)
         params = self.model(x_t, t)
-        coef = self.betas / (self.extract(torch.sqrt(1-self.alphas_bar), t, x_t))
-    
-        print(params.shape)
-        print(coef.shape)
-        print((coef * params))
+        coef = (1-alpha) / (1-alpha_bar)**0.5
         mean = 1 / torch.sqrt(alpha) * (x_t - coef * params)
-        var = self.extract(self.betas, t)
+        var = self.extract(self.betas, t, x_t)
         eps = torch.randn_like(x_t, device=x_t.device)
         return mean + torch.sqrt(var) * eps
 
@@ -61,3 +58,80 @@ class denoisingDiffusion:
         out = torch.gather(input, 0, t.to(input.device))
         reshape = [t.shape[0]] + [1] * (len(shape) - 1)
         return out.reshape(*reshape)
+    
+    
+class deNoise(nn.Module):
+    def __init__(self, in_channels=1, out_channels = 32, hiddenDim=64, kernel_size = 3):
+        super(deNoise, self).__init__()
+        
+        w = 28+1+1-2*kernel_size
+        features=torch.tensor([out_channels,w,w])
+        self.num_features = torch.prod(features, dim=0).item()
+        self.ft_shape = features
+        out_channels1 = 16
+
+        self.conv1 = nn.Conv2d(in_channels, out_channels1, kernel_size)
+        self.conv2 = nn.Conv2d(out_channels1, out_channels, kernel_size)
+        self.fc1 = nn.Linear(self.num_features, hiddenDim)
+        
+        self.fc2 = nn.Linear(hiddenDim, self.num_features)
+        self.conv3 = nn.ConvTranspose2d(out_channels, out_channels1, kernel_size)
+        self.conv4 = nn.ConvTranspose2d(out_channels1, in_channels, kernel_size)
+        
+    def forward(self, x, t):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = torch.sigmoid(self.fc1(x.view(-1, self.num_features)))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.conv3(x.view(-1, self.ft_shape[0], self.ft_shape[1], self.ft_shape[2])))
+        x = torch.sigmoid(self.conv4(x))
+        return x
+    
+if __name__=="__main__":
+    cuda = torch.cuda.is_available()
+    batch_size = 128
+    log_interval = 10
+    num_epochs = 10
+
+    torch.manual_seed(1) # args.seed
+
+    device = torch.device("cuda" if cuda else "cpu") # args.cuda
+    kwargs = {'num_workers': 1, 'pin_memory': True} if cuda else {} # args.cuda
+
+    # Get train and test data
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+                    transform=transforms.ToTensor()),
+        batch_size=batch_size, shuffle=True, **kwargs)
+    test_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
+        batch_size=batch_size, shuffle=True, **kwargs)
+
+
+    
+    eps_model = deNoise()
+    eps_model.to(device)
+    diff = denoisingDiffusion(eps_model, device=device)
+    optimizer = torch.optim.Adam(eps_model.parameters(), lr=1e-3)
+    eps_model.train() # so that everything has gradients and we can do backprop and so on...
+    train_loss = 0
+    for epoch in range(1, num_epochs):
+        for batch_idx, (data, _) in enumerate(train_loader):
+            data = data.to(device)
+            optimizer.zero_grad() # "reset" gradients to 0 for text iteration
+            
+            loss = diff.loss(data)
+            loss.backward() # calc gradients
+            train_loss += loss.item()
+            optimizer.step() # backpropagation
+
+        print('====> Epoch: {} Average loss: {:.4f}'.format(
+            epoch, train_loss / len(train_loader.dataset)))
+        if True:
+            with torch.no_grad():
+                sample = torch.randn(28, 28).to(device)
+                sample = sample.unsqueeze(0)
+                t = torch.arange(diff.T, 0, step=-1, device=device)
+                sample = diff.sample_p(sample, t)
+                save_image(sample.cpu(),
+                            'results/diffusion/sample_' + str(epoch) + '.png')

@@ -9,6 +9,9 @@ class PPCA():
     def __init__(self, dataset, L):
         self.dataset = dataset
         data = self.dataset.data
+        #PCA entire dataset
+        self.L = L
+        '''
         if len(data.shape) > 2:
             self.data = data.reshape((60000, 28*28))
         else:
@@ -19,7 +22,7 @@ class PPCA():
         self.eigenval = self.eigen.eigenvalues
       
         self.dim = self.eigenvec.shape[1]
-        self.L = L
+        
         self.sigma2 = 1/(self.dim-L)*torch.sum(self.eigenval[L:])
         self.W = self.eigenvec[:,:L] @ (torch.diag(self.eigenval[:L])-self.sigma2*torch.eye(L)**0.5) 
         self.mu = torch.mean(self.data.type(torch.double), 0)
@@ -28,11 +31,13 @@ class PPCA():
         self.x_mu = self.data.T - self.mu.repeat(self.data.shape[0],1).T
         temp = torch.inverse(M)@self.W.T
         self.z = temp.type(torch.double)@self.x_mu
+        '''
 
     def plot(self):
         for s in self.compute_pca_loop():
-            
-        return
+            digit, sample = s
+            save_image(sample.view(28, 28).cpu(),
+                'results/PPCA/sample_' + str(digit) + '.png')
         
     def compute_pca_loop(self):
         samples = []
@@ -41,7 +46,7 @@ class PPCA():
             data = self.dataset.train_data[idx]
             z, W, x_mu, sigma2 = self.compute_pca(data)
             sample = self.generate_sample(z, W, x_mu, sigma2)
-            samples.append(sample)
+            samples.append((i,sample))
         return samples
     
     def compute_pca(self, data):
@@ -54,7 +59,7 @@ class PPCA():
       
         dim = eigenvec.shape[1]
         sigma2 = 1/(dim-self.L)*torch.sum(eigenval[self.L:])
-        W = self.eigenvec[:,:self.L] @ (torch.diag(eigenval[:self.L])-sigma2*torch.eye(self.L)**0.5) 
+        W = eigenvec[:,:self.L] @ (torch.diag(eigenval[:self.L])-sigma2*torch.eye(self.L)**0.5) 
         mu = torch.mean(data.type(torch.double), 0)
         M = W.T @ W + sigma2 * torch.eye(self.L)
         x_mu = data.T - mu.repeat(data.shape[0],1).T
@@ -63,17 +68,13 @@ class PPCA():
         return z, W.type(torch.double), mu, sigma2
 
     def generate_sample(self, z, W, mu, sigma2):
-        prior = torch.distributions.Normal(torch.zeros(W.shape[0]), 1)
-        eps = prior.sample()
-        return W@z + mu + 0*sigma2.type(torch.double)*eps
+        sigma = torch.sqrt(sigma2.type(torch.double))
+        return W@z + mu + sigma*torch.randn_like(mu)
        
 
 if __name__=="__main__":
     cuda = torch.cuda.is_available()
-    batch_size = 128
-    log_interval = 10
-    num_epochs = 10
-
+    batch_size = 1
     torch.manual_seed(1) # args.seed
 
     device = torch.device("cuda" if cuda else "cpu") # args.cuda
@@ -85,8 +86,6 @@ if __name__=="__main__":
                     transform=transforms.ToTensor()),
         batch_size=batch_size, shuffle=True, **kwargs)
 
-    ppca = PPCA(train_loader.dataset, 30)
+    ppca = PPCA(train_loader.dataset, 5)
     samples = ppca.plot()
-    s = samples[2]
-    plt.imshow(s.reshape((28,28)), cmap='gray')
-    plt.show()
+   
