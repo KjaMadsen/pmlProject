@@ -14,7 +14,7 @@ class denoisingDiffusion(nn.Module):
         super(denoisingDiffusion, self).__init__()
         self.T = T
         start = 1e-4; end = 0.02
-        self.betas = torch.linspace(start, end, T, device=device)
+        self.betas = torch.linspace(start, end, T+1, device=device)
         self.alphas = 1 - self.betas
         #self.alphas_bar = torch.cumprod(self.alphas, dim=0) #Not implemented for apple silicon
         alphas_log = torch.log(self.alphas)
@@ -27,11 +27,11 @@ class denoisingDiffusion(nn.Module):
         one_minus_a_t = self.extract(torch.sqrt(1-self.alphas_bar), t, x0)
         return (a_t * x0  + one_minus_a_t * noise)
 
-    def loss(self, x0):
+    def forward(self, x0):
         batch_size = x0.shape[0]
-        t = torch.randint(0, self.T, (batch_size,), device=x0.device, dtype=torch.long)
+        t = torch.randint(1, self.T, (batch_size,), device=x0.device, dtype=torch.long)
         
-        noise=torch.rand_like(x0)
+        noise=torch.randn_like(x0)
         x_t = self.sample_q(x0, t, noise)
         eps_theta = self.model(x_t, t)
 
@@ -39,7 +39,7 @@ class denoisingDiffusion(nn.Module):
 
     def sample_p(self, n=1): #alogrithm 2
         x_t = torch.randn(n, *(1,28,28)).to(self.device)
-        for t in range(self.T-1, 0, -1):
+        for t in range(self.T, 0, -1):
             z = torch.randn_like(x_t) if t > 1 else 0
             alpha = self.alphas[t]
             alpha_bar = self.alphas_bar[t]
@@ -57,9 +57,9 @@ class denoisingDiffusion(nn.Module):
         return out.reshape(*reshape)
     
     
-class deNoise(nn.Module):
-    def __init__(self, in_channels=1, out_channels = 32, hiddenDim=64, kernel_size = 3):
-        super(deNoise, self).__init__()
+class deNoiseBIG(nn.Module):
+    def __init__(self):
+        super(deNoiseBIG, self).__init__()
         
         self.network = nn.Sequential(
             nn.Conv2d(1, 64, 7, padding=3),
@@ -82,17 +82,40 @@ class deNoise(nn.Module):
         
     def forward(self, x, t):
         return self.network(x)
+
+
+class deNoise(nn.Module):
+    def __init__(self):
+        super(deNoise, self).__init__()
+        
+        self.network = nn.Sequential(
+            nn.Conv2d(1, 64, 7, padding=3),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(),
+            nn.Conv2d(64, 128, 7, padding=3),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.Conv2d(128, 64, 7, padding=3),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(),
+            nn.Conv2d(64, 1, 3, padding=1)
+        )
+        
+    def forward(self, x, t):
+        return self.network(x)
     
 if __name__=="__main__":
     cuda = torch.cuda.is_available()
-    mps_device = torch.device("mps")
+    mps = torch.backends.mps.is_available()
     batch_size = 128
     num_epochs = 10
 
     torch.manual_seed(1) # args.seed
-
-    device = torch.device("cuda" if cuda else "cpu") # args.cuda
-    device = mps_device
+    if mps:
+        device = torch.device("mps")
+    else:
+        device = torch.device("cuda" if cuda else "cpu") # args.cuda
+    print("Using device ", device)
     kwargs = {'num_workers': 5, 'pin_memory': True} if cuda else {} # args.cuda
 
     # Get train and test data
@@ -119,12 +142,12 @@ if __name__=="__main__":
             data = data.to(device)
             optimizer.zero_grad() # "reset" gradients to 0 for text iteration
             
-            loss = diff.loss(data)
+            loss = diff(data)
             loss.backward() # calc gradients
             train_loss += loss.item()
             optimizer.step() # backpropagation
             tqdm_.set_description(f"loss: {loss:.4f}")
-        torch.save(diff.state_dict(), "weights/diff.pth")
+        
         print('====> Epoch: {} Average loss: {:.4f}'.format(
             epoch, train_loss / len(train_loader.dataset)))
         
@@ -133,3 +156,4 @@ if __name__=="__main__":
             sample = diff.sample_p(n=64)
             save_image(sample.view(64, 1, 28, 28).cpu(),
                         'results/diffusion/sample_' + str(epoch) + '.png')
+        torch.save(diff.state_dict(), "weights/diff.pth")
