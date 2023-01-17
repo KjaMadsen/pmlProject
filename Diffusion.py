@@ -1,7 +1,9 @@
+#Implemnted using inspiration from these sources
+#https://arxiv.org/pdf/2006.11239.pdf (original paper)
 #https://nn.labml.ai/diffusion/ddpm/index.html
 #https://github.com/azad-academy/denoising-diffusion-model/blob/main/diffusion_model_demo.ipynb
-# https://colab.research.google.com/drive/1sjy9odlSSy0RBVgMTgP7s99NXsqglsUL?usp=sharing#scrollTo=Rj17psVw7Shg
-# https://www.youtube.com/watch?v=a4Yfz2FxXiY&t=3s 
+#https://github.com/cloneofsimo/minDiffusion/blob/00a3c8066d25a34d3d472ef6c87c7b6b238ea444/superminddpm.py#L83
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,7 +29,7 @@ class denoisingDiffusion(nn.Module):
         one_minus_a_t = self.extract(torch.sqrt(1-self.alphas_bar), t, x0)
         return (a_t * x0  + one_minus_a_t * noise)
 
-    def forward(self, x0):
+    def forward(self, x0): #algorithm 1
         batch_size = x0.shape[0]
         t = torch.randint(1, self.T, (batch_size,), device=x0.device, dtype=torch.long)
         
@@ -40,14 +42,14 @@ class denoisingDiffusion(nn.Module):
     def sample_p(self, n=1): #alogrithm 2
         x_t = torch.randn(n, *(1,28,28)).to(self.device)
         for t in range(self.T, 0, -1):
-            z = torch.randn_like(x_t) if t > 1 else 0
+            noise = torch.randn_like(x_t) if t > 1 else 0
             alpha = self.alphas[t]
             alpha_bar = self.alphas_bar[t]
             eps_theta = self.model(x_t, t)
             coef = (1-alpha) / (1-alpha_bar)**0.5
             mean = 1 / torch.sqrt(alpha) * (x_t - coef * eps_theta)
             var = self.betas[t]**0.5
-            x_t = mean + var*z
+            x_t = mean + var*noise
         return x_t
     
     def extract(self, input, t, x):

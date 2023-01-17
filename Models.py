@@ -5,14 +5,14 @@ import math
 
 # original VAE model
 class VAE(nn.Module):
-    def __init__(self):
+    def __init__(self, z=2):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
         self.fc1a = nn.Linear(400, 100)
-        self.fc21 = nn.Linear(100, 2) # Latent space of 2D
-        self.fc22 = nn.Linear(100, 2) # Latent space of 2D
-        self.fc3 = nn.Linear(2, 100) # Latent space of 2D
+        self.fc21 = nn.Linear(100, z) 
+        self.fc22 = nn.Linear(100, z) 
+        self.fc3 = nn.Linear(z, 100) 
         self.fc3a = nn.Linear(100, 400)
         self.fc4 = nn.Linear(400, 784)
 
@@ -39,7 +39,7 @@ class VAE(nn.Module):
 
 
 class convVAE(nn.Module):
-    def __init__(self, in_channels=1, out_channels = 32, hiddenDim=64, kernel_size = 3):
+    def __init__(self, in_channels=1, out_channels = 32, hiddenDim=2, kernel_size = 3):
         super(convVAE, self).__init__()
         w = 28+1+1-2*kernel_size
         features=torch.tensor([out_channels,w,w])

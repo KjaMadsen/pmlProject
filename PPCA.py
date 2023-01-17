@@ -33,7 +33,7 @@ class PPCA():
         self.z = temp.type(torch.double)@self.x_mu
         '''
 
-    def plot(self):
+    def sample(self):
         for s in self.compute_pca_loop():
             digit, sample = s
             save_image(sample.view(28, 28).cpu(),
@@ -41,7 +41,7 @@ class PPCA():
         
     def compute_pca_loop(self):
         samples = []
-        for i in range(9+1):
+        for i in range(10+1):
             idx = self.dataset.train_labels == i
             data = self.dataset.train_data[idx]
             z, W, x_mu, sigma2 = self.compute_pca(data)
