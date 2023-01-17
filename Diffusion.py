@@ -109,7 +109,7 @@ class deNoise(nn.Module):
 if __name__=="__main__":
     cuda = torch.cuda.is_available()
     mps = torch.backends.mps.is_available()
-    batch_size = 128
+    batch_size = 64
     num_epochs = 10
 
     torch.manual_seed(1) # args.seed
@@ -135,7 +135,7 @@ if __name__=="__main__":
     eps_model.to(device)
     diff = denoisingDiffusion(eps_model, device=device)
     optimizer = torch.optim.Adam(eps_model.parameters(), lr=1e-3)
-    train_loss = 0
+   
     
     for epoch in range(1, num_epochs):
         tqdm_ = tqdm(train_loader)
@@ -146,12 +146,9 @@ if __name__=="__main__":
             
             loss = diff(data)
             loss.backward() # calc gradients
-            train_loss += loss.item()
+           
             optimizer.step() # backpropagation
             tqdm_.set_description(f"loss: {loss:.4f}")
-        
-        print('====> Epoch: {} Average loss: {:.4f}'.format(
-            epoch, train_loss / len(train_loader.dataset)))
         
         diff.eval()
         with torch.no_grad():
