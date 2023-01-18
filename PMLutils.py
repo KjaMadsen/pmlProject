@@ -52,10 +52,12 @@ def test_VAE(model, device, dataloader):
             data = data.to(device)
             recon_batch, mu, logvar = model(data)
             test_loss += ELBO_loss_function(recon_batch, data, mu, logvar).item()
-    return test_loss
+    
 
     test_loss /= len(dataloader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
+
+    return test_loss
 
 def save_imgs(model, num_imgs, z, location, weights = None, device='cpu'):
     if weights is not None:
