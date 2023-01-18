@@ -33,11 +33,15 @@ class PPCA():
         self.z = temp.type(torch.double)@self.x_mu
         '''
 
-    def sample(self):
+    def sample(self, save = True):
+        samples = []
         for s in self.compute_pca_loop():
             digit, sample = s
-            save_image(sample.view(28, 28).cpu(),
-                'results/PPCA/sample_' + str(digit) + '.png')
+            samples.append(sample)
+            if save:
+                save_image(sample.view(28, 28).cpu(),
+                    'results/PPCA/sample_' + str(digit) + '.png')
+        return samples
         
     def compute_pca_loop(self):
         samples = []

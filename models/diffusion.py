@@ -11,9 +11,9 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-class denoisingDiffusion(nn.Module):
+class DenoisingDiffusion(nn.Module):
     def __init__(self, model : nn.Module, T=1000, device='cpu'):
-        super(denoisingDiffusion, self).__init__()
+        super(DenoisingDiffusion, self).__init__()
         self.T = T
         start = 1e-4; end = 0.02
         self.betas = torch.linspace(start, end, T+1, device=device)
@@ -59,9 +59,9 @@ class denoisingDiffusion(nn.Module):
         return out.reshape(*reshape)
     
     
-class deNoiseBIG(nn.Module):
+class DeNoiseBIG(nn.Module):
     def __init__(self):
-        super(deNoiseBIG, self).__init__()
+        super(DeNoiseBIG, self).__init__()
         
         self.network = nn.Sequential(
             nn.Conv2d(1, 64, 7, padding=3),
@@ -86,9 +86,9 @@ class deNoiseBIG(nn.Module):
         return self.network(x)
 
 
-class deNoise(nn.Module):
+class DeNoise(nn.Module):
     def __init__(self):
-        super(deNoise, self).__init__()
+        super(DeNoise, self).__init__()
         
         self.network = nn.Sequential(
             nn.Conv2d(1, 64, 7, padding=3),
@@ -131,9 +131,9 @@ if __name__=="__main__":
 
 
     
-    eps_model = deNoise()
+    eps_model = DeNoise()
     eps_model.to(device)
-    diff = denoisingDiffusion(eps_model, device=device)
+    diff = DenoisingDiffusion(eps_model, device=device)
     optimizer = torch.optim.Adam(eps_model.parameters(), lr=1e-3)
    
     

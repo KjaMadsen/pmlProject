@@ -10,6 +10,9 @@ from torchmetrics import PeakSignalNoiseRatio as PSNR
 from torchmetrics import ExplainedVariance, MeanAbsoluteError
 
 def test_suite(real, fake):
+    if real.shape != fake.shape:
+        fake = fake.reshape(-1,1,28,28)
+    assert real.shape == fake.shape
     msi = MSSSIM(kernel_size=(3,3), betas=(0.0448, 0.03))
     m = msi(fake, real).item()
     psnr = PSNR()
@@ -49,6 +52,7 @@ def test_VAE(model, device, dataloader):
             data = data.to(device)
             recon_batch, mu, logvar = model(data)
             test_loss += ELBO_loss_function(recon_batch, data, mu, logvar).item()
+    return test_loss
 
     test_loss /= len(dataloader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
