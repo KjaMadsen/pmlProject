@@ -45,7 +45,7 @@ class PPCA():
         
     def compute_pca_loop(self):
         samples = []
-        for i in range(10+1):
+        for i in range(10):
             idx = self.dataset.train_labels == i
             data = self.dataset.train_data[idx]
             z, W, x_mu, sigma2 = self.compute_pca(data)
@@ -91,5 +91,5 @@ if __name__=="__main__":
         batch_size=batch_size, shuffle=True, **kwargs)
 
     ppca = PPCA(train_loader.dataset, 5)
-    samples = ppca.plot()
+    samples = ppca.sample()
    
