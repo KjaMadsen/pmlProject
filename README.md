@@ -33,13 +33,15 @@ and variance σs2.
 • Priors: use a LogNormal prior:
 σl2 ∼ LogNormal(−1, 1) σv2 ∼ LogNormal(0, 2)
 • Fixed GP noise variance 10−4.
------------------------------------------
+
+
+
 Data: Initial dataset D. Candidate set X∗ = {x∗1, . . . x∗l }, number of iterations T
 for k = 1,...,T do
 Sample f∗ ∼ p(f∗|X∗,D);
 p = arg mini fi∗;
 Add (x∗p,f(x∗p)) to the dataset D
------------------------------------------
+
 Algorithm 1: Bayesian Optimization 
 
 
