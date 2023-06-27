@@ -36,11 +36,12 @@ and variance σs2.
 
 
 
-Data: Initial dataset D. Candidate set X∗ = {x∗1, . . . x∗l }, number of iterations T
-for k = 1,...,T do
-Sample f∗ ∼ p(f∗|X∗,D);
-p = arg mini fi∗;
-Add (x∗p,f(x∗p)) to the dataset D
+Data: Initial dataset D. Candidate set $X∗ = {x∗1, . . . x∗l }$, 
+number of iterations T
+for $k = 1,...,T$ do
+Sample $f∗ ∼ p(f∗|X∗,D);$
+$p = arg mini fi∗;$
+Add $(x∗p,f(x∗p))$ to the dataset D
 
 Algorithm 1: Bayesian Optimization 
 
